@@ -1,3 +1,6 @@
+
+
+```
 sistema_replicacao/
 ├── cliente.py
 ├── servidor_primario.py
@@ -8,6 +11,7 @@ sistema_replicacao/
 │   ├── replica2/
 │   └── replica3/
 └── README.md
+```
 
 
 python executar_sistema.py
