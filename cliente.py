@@ -1,114 +1,81 @@
+# cliente.py
 import socket
-import os
 import sys
+import os
 
-class Cliente:
-    def __init__(self, cliente_id, host, porta):
-        self.cliente_id = cliente_id
-        self.host = host
-        self.porta = porta
-        self.socket = None
-    
-    def conectar(self):
-        """Conecta ao servidor primário"""
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.connect((self.host, self.porta))
-            print("Conexão criada com o servidor primário.")
-            return True
-        except Exception as e:
-            print(f"Erro ao conectar: {e}")
-            return False
-    
-    def enviar_arquivo(self, caminho_arquivo):
-        """Envia um arquivo para o servidor primário"""
-        if not os.path.exists(caminho_arquivo):
-            print(f"Erro: Arquivo '{caminho_arquivo}' não encontrado")
-            return
-        
-        nome_arquivo = os.path.basename(caminho_arquivo)
-        print(f"Enviando arquivo '{nome_arquivo}'...")
-        
-        try:
-            # Enviar comando upload
-            comando = f"upload {nome_arquivo}"
-            self.socket.send(comando.encode())
+TAM_BUFFER = 4096
+
+def iniciar_cliente(host, porta):
+    try:
+        # Conecta ao servidor primário
+        sock_cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock_cliente.connect((host, porta))
+        print("Conexão criada com o servidor primário.")
+
+        while True:
+            # Lê comando do usuário
+            entrada = input("> ")
+            if not entrada:
+                continue
             
-            # Obter tamanho do arquivo
-            tamanho_arquivo = os.path.getsize(caminho_arquivo)
+            partes = entrada.split()
+            comando = partes[0].lower()
+
+            if comando == 'exit':
+                break
+
+            if comando == 'upload':
+                if len(partes) != 2:
+                    print("Uso: upload <caminho_do_arquivo>")
+                    continue
+                
+                caminho_arquivo = partes[1]
+                if not os.path.exists(caminho_arquivo):
+                    print(f"Erro: Arquivo '{caminho_arquivo}' não encontrado.")
+                    continue
+
+                nome_arquivo = os.path.basename(caminho_arquivo)
+                tamanho_arquivo = os.path.getsize(caminho_arquivo)
+                print(f"Enviando arquivo '{nome_arquivo}'...")
+
+                # 1. Envia o cabeçalho
+                cabecalho = f"upload|{nome_arquivo}|{tamanho_arquivo}"
+                sock_cliente.sendall(cabecalho.encode())
+
+                # 2. Envia o conteúdo do arquivo
+                with open(caminho_arquivo, 'rb') as f:
+                    while True:
+                        bloco = f.read(TAM_BUFFER)
+                        if not bloco:
+                            break
+                        sock_cliente.sendall(bloco)
+                
+                # 3. Aguarda e imprime a resposta do servidor
+                resposta = sock_cliente.recv(TAM_BUFFER).decode()
+                print(resposta)
+
+            elif comando == 'list':
+                sock_cliente.sendall(b'list')
+                resposta = sock_cliente.recv(TAM_BUFFER).decode()
+                print(resposta)
             
-            # Enviar tamanho do arquivo
-            self.socket.send(str(tamanho_arquivo).encode())
-            
-            # Enviar arquivo em blocos
-            with open(caminho_arquivo, 'rb') as arquivo:
-                bytes_enviados = 0
-                while bytes_enviados < tamanho_arquivo:
-                    dados = arquivo.read(4096)
-                    self.socket.sendall(dados)
-                    bytes_enviados += len(dados)
-            
-            # Receber confirmação
-            resposta = self.socket.recv(1024).decode()
-            if resposta.startswith("SUCESSO"):
-                print(resposta.split("|")[1])
             else:
-                print(f"Erro: {resposta.split('|')[1]}")
-                
-        except Exception as e:
-            print(f"Erro ao enviar arquivo: {e}")
-    
-    def listar_arquivos(self):
-        """Solicita listagem de arquivos ao servidor"""
-        try:
-            self.socket.send(b"list")
-            resposta = self.socket.recv(4096).decode()
-            print(resposta)
-        except Exception as e:
-            print(f"Erro ao listar arquivos: {e}")
-    
-    def executar(self):
-        """Loop principal do cliente"""
-        if not self.conectar():
-            return
-        
-        try:
-            while True:
-                comando = input("> ").strip()
-                
-                if comando.startswith("upload"):
-                    partes = comando.split()
-                    if len(partes) == 2:
-                        self.enviar_arquivo(partes[1])
-                    else:
-                        print("Uso: upload <caminho_arquivo>")
-                
-                elif comando == "list":
-                    self.listar_arquivos()
-                
-                elif comando == "quit":
-                    self.socket.send(b"quit")
-                    break
-                
-                else:
-                    print("Comandos disponíveis: upload <arquivo>, list, quit")
-                    
-        except KeyboardInterrupt:
-            print("\nCliente encerrado")
-        except Exception as e:
-            print(f"Erro: {e}")
-        finally:
-            if self.socket:
-                self.socket.close()
+                print(f"Comando '{comando}' desconhecido. Comandos disponíveis: upload, list, exit.")
+
+    except ConnectionRefusedError:
+        print("Erro: A conexão foi recusada. O servidor primário está online?")
+    except Exception as e:
+        print(f"Ocorreu um erro: {e}")
+    finally:
+        sock_cliente.close()
+        print("Conexão encerrada.")
+
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Uso: python cliente.py <cliente_id> <host> <porta>")
+    if len(sys.argv) != 3:
+        print(f"Uso correto: python3 {sys.argv[0]} <host_servidor> <porta_servidor>")
         sys.exit(1)
     
-    cliente_id = sys.argv[1]
-    host = sys.argv[2]
-    porta = int(sys.argv[3])
-    
-    cliente = Cliente(cliente_id, host, porta)
-    cliente.executar()
+    host_servidor = sys.argv[1]
+    porta_servidor = int(sys.argv[2])
+    iniciar_cliente(host_servidor, porta_servidor)
