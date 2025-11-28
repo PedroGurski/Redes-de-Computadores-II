@@ -1,13 +1,14 @@
-# cliente.py (CORRIGIDO)
 import socket
 import sys
 import os
 
 TAM_BUFFER = 4096
-TAM_CABECALHO = 1024 # Mesmo tamanho fixo
+TAM_CABECALHO = 1024 
 
-def iniciar_cliente(host, porta):
-    # Usamos um loop para permitir múltiplos comandos sem reconectar
+def iniciar_cliente(id_cliente, host, porta):
+    # Mensagem exibida apenas uma vez ao iniciar, conforme exemplo do PDF
+    print("Conexão criada com o servidor primário.") 
+
     while True:
         try:
             entrada = input("> ")
@@ -18,10 +19,9 @@ def iniciar_cliente(host, porta):
             comando = partes[0].lower()
 
             if comando == 'exit':
-                print("Encerrando cliente.")
                 break
 
-            # A conexão é criada para cada comando e fechada depois
+            # Conexão não-persistente (abre e fecha por comando), compatível com os logs do servidor no PDF
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock_cliente:
                 sock_cliente.connect((host, porta))
 
@@ -39,12 +39,11 @@ def iniciar_cliente(host, porta):
                     tamanho_arquivo = os.path.getsize(caminho_arquivo)
                     print(f"Enviando arquivo '{nome_arquivo}'...")
 
-                    # 1. Cria e envia o cabeçalho de tamanho fixo
-                    cabecalho_str = f"upload|{nome_arquivo}|{tamanho_arquivo}"
+                    # Protocolo atualizado: id_cliente|upload|nome|tamanho
+                    cabecalho_str = f"{id_cliente}|upload|{nome_arquivo}|{tamanho_arquivo}"
                     cabecalho = cabecalho_str.encode().ljust(TAM_CABECALHO)
                     sock_cliente.sendall(cabecalho)
 
-                    # 2. Envia o conteúdo do arquivo
                     with open(caminho_arquivo, 'rb') as f:
                         while True:
                             bloco = f.read(TAM_BUFFER)
@@ -52,12 +51,12 @@ def iniciar_cliente(host, porta):
                                 break
                             sock_cliente.sendall(bloco)
                     
-                    # 3. Aguarda e imprime a resposta do servidor
                     resposta = sock_cliente.recv(TAM_BUFFER).decode()
                     print(resposta)
 
                 elif comando == 'list':
-                    cabecalho_str = "list"
+                    # Protocolo atualizado: id_cliente|list
+                    cabecalho_str = f"{id_cliente}|list"
                     cabecalho = cabecalho_str.encode().ljust(TAM_CABECALHO)
                     sock_cliente.sendall(cabecalho)
                     
@@ -65,7 +64,7 @@ def iniciar_cliente(host, porta):
                     print(resposta)
                 
                 else:
-                    print(f"Comando '{comando}' desconhecido. Comandos: upload, list, exit.")
+                    print(f"Comando '{comando}' desconhecido. Use: upload, list, exit.")
 
         except ConnectionRefusedError:
             print("Erro: A conexão foi recusada. O servidor primário está online?")
@@ -75,11 +74,13 @@ def iniciar_cliente(host, porta):
             break
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(f"Uso correto: python3 {sys.argv[0]} <host_servidor> <porta_servidor>")
+    # Ajustado para receber o ID do cliente conforme enunciado
+    if len(sys.argv) != 4:
+        print(f"Uso correto: python3 {sys.argv[0]} <id_cliente> <host_servidor> <porta_servidor>")
         sys.exit(1)
     
-    host_servidor = sys.argv[1]
-    porta_servidor = int(sys.argv[2])
-    print("Cliente iniciado. Use 'upload <arquivo>', 'list' ou 'exit'.")
-    iniciar_cliente(host_servidor, porta_servidor)
+    id_cliente = sys.argv[1]
+    host_servidor = sys.argv[2]
+    porta_servidor = int(sys.argv[3])
+    
+    iniciar_cliente(id_cliente, host_servidor, porta_servidor)
