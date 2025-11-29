@@ -6,14 +6,15 @@ import threading
 TAM_BUFFER = 4096
 TAM_FILA = 5
 TAM_CABECALHO = 1024
-# Lista fixa conforme o padrão de 3 réplicas [cite: 29]
+
+# Caso tenha mais replicas, adicionamos manualmente
 REPLICAS = [('127.0.0.1', 9000), ('127.0.0.1', 9001), ('127.0.0.1', 9002)]
 DIRETORIO_PRIMARIO = "servidor_primario_data"
 
 def replicar_para_servidores(id_cliente, nome_arquivo, caminho_completo):
     tamanho_arquivo = os.path.getsize(caminho_completo)
     
-    # Protocolo de réplica também precisa do ID para isolamento: id|nome|tamanho
+    # protocolo: id|nome|tamanho
     cabecalho_str = f"{id_cliente}|{nome_arquivo}|{tamanho_arquivo}"
     cabecalho = cabecalho_str.encode().ljust(TAM_CABECALHO)
     
@@ -45,8 +46,6 @@ def replicar_para_servidores(id_cliente, nome_arquivo, caminho_completo):
     return confirmacoes == total_replicas
 
 def lidar_com_cliente(conn, addr):
-    # O print inicial de conexão agora é movido para DEPOIS de ler o cabeçalho,
-    # pois precisamos saber o ID do cliente para logar igual ao enunciado "[1]"
     try:
         with conn:
             cabecalho_bytes = conn.recv(TAM_CABECALHO)
@@ -56,17 +55,17 @@ def lidar_com_cliente(conn, addr):
             comando_str = cabecalho_bytes.decode().strip()
             partes = comando_str.split('|')
             
-            # Protocolo: id_cliente|operacao|...
+            # Protocolo: id_cliente|operacao|
             if len(partes) < 2:
                 return
 
             id_cliente = partes[0]
             operacao = partes[1]
 
-            print(f"Conexão com cliente [{id_cliente}] estabelecida.") # 
+            print(f"Conexão com cliente [{id_cliente}] estabelecida.")
             print(f"Operação solicitada: {operacao}")
 
-            # Define diretório específico do cliente
+            # diretorio do cliente
             dir_cliente = os.path.join(DIRETORIO_PRIMARIO, id_cliente)
             if not os.path.exists(dir_cliente):
                 os.makedirs(dir_cliente)
@@ -91,7 +90,7 @@ def lidar_com_cliente(conn, addr):
                 print(f"Arquivo '{nome_arquivo}' recebido. Armazenamento local concluído.")
                 print("Iniciando processo de replicação...")
                 
-                # Passa o ID para as réplicas também
+                # Passa o ID para as rweplicas tambem
                 sucesso = replicar_para_servidores(id_cliente, nome_arquivo, caminho_arquivo)
 
                 if sucesso:
@@ -104,7 +103,7 @@ def lidar_com_cliente(conn, addr):
             elif operacao == 'list':
                 print("Recuperando listagem dos arquivos locais.")
                 try:
-                    # Lista apenas a pasta deste cliente específico
+                    # lista somente os arquivos do cliente especifico | fizemos assim pois ficamos em dúvida se era para retornar todos os arquivos que foram armazenados
                     arquivos = os.listdir(dir_cliente)
                     lista_arquivos = " ".join(arquivos) if arquivos else ""
                     print("Enviando informações ao cliente.\n")
@@ -115,8 +114,6 @@ def lidar_com_cliente(conn, addr):
     except Exception as e:
         print(f"Erro na conexão: {e}")
     finally:
-        # A mensagem de fechamento não aparece explicitamente no log do enunciado,
-        # mas é boa prática manter ou remover para ficar idêntico ao PDF (removido aqui para limpar a saída)
         pass 
 
 def iniciar_servidor_primario(porta):
@@ -131,7 +128,6 @@ def iniciar_servidor_primario(porta):
 
     while True:
         conn, addr = sock_servidor.accept()
-        # Thread para permitir múltiplos clientes simultâneos
         t = threading.Thread(target=lidar_com_cliente, args=(conn, addr))
         t.start()
 

@@ -28,19 +28,18 @@ def iniciar_replica(porta):
                 cabecalho = cabecalho_bytes.decode().strip()
                 
                 try:
-                    # Protocolo recebido do primário: id_cliente|nome_arquivo|tamanho
+                    # Protocolo recebido do primario: id_cliente|nome_arquivo|tamanho
                     id_cliente, nome_arquivo, tamanho_str = cabecalho.split('|')
                     tamanho_arquivo = int(tamanho_str)
                     
-                    # Cria pasta específica para o cliente dentro da réplica
+                    # diretorio do cliente dentro da replica
                     dir_cliente = os.path.join(diretorio_base_replica, id_cliente)
                     if not os.path.exists(dir_cliente):
                         os.makedirs(dir_cliente)
 
                     caminho_arquivo = os.path.join(dir_cliente, nome_arquivo)
                     
-                    # print(f"[RÉPLICA {porta}] Recebendo '{nome_arquivo}' de Cliente {id_cliente}...") 
-                    # Comentado acima pois o enunciado pede saída limpa nas réplicas, ou opcional [cite: 79]
+                    print(f"[RÉPLICA {porta}] Recebendo '{nome_arquivo}' de Cliente {id_cliente}...")
 
                     bytes_recebidos = 0
                     with open(caminho_arquivo, 'wb') as f:
@@ -63,7 +62,7 @@ def iniciar_replica(porta):
                     conn.sendall(b'ERRO_GERAL')
 
     except Exception as e:
-        print(f"Erro fatal na réplica {porta}: {e}")
+        print(f"Erro na replica {porta}: {e}")
     finally:
         sock_replica.close()
 
